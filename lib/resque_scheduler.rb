@@ -3,6 +3,7 @@ require 'resque'
 require 'resque_scheduler/version'
 require 'resque/scheduler'
 require 'resque_scheduler/plugin'
+require 'resque_scheduler/redis'
 
 module ResqueScheduler
 
@@ -65,6 +66,7 @@ module ResqueScheduler
 
   # gets the schedule as it exists in redis
   def get_schedules
+    redis = ResqueScheduler.redis
     if redis.exists(:schedules)
       redis.hgetall(:schedules).tap do |h|
         h.each do |name, config|
@@ -86,6 +88,7 @@ module ResqueScheduler
   #                                     :queue => 'high',
   #                                     :args => '/tmp/poop'})
   def set_schedule(name, config)
+    redis = ResqueScheduler.redis
     existing_config = get_schedule(name)
     unless existing_config && existing_config == config
       redis.hset(:schedules, name, encode(config))
@@ -96,11 +99,13 @@ module ResqueScheduler
 
   # retrive the schedule configuration for the given name
   def get_schedule(name)
+    redis = ResqueScheduler.redis
     decode(redis.hget(:schedules, name))
   end
 
   # remove a given schedule by name
   def remove_schedule(name)
+    redis = ResqueScheduler.redis
     redis.hdel(:schedules, name)
     redis.sadd(:schedules_changed, name)
   end

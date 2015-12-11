@@ -1,5 +1,6 @@
 require 'rufus/scheduler'
 require 'thwait'
+require 'resque_scheduler/redis'
 
 module Resque
 
@@ -100,7 +101,7 @@ module Resque
         Resque.schedule.each do |name, config|
           load_schedule_job(name, config)
         end
-        Resque.redis.del(:schedules_changed)
+        ResqueScheduler.redis.del(:schedules_changed)
         procline "Schedules Loaded"
       end
 
@@ -247,10 +248,11 @@ module Resque
       end
 
       def update_schedule
-        if Resque.redis.scard(:schedules_changed) > 0
+        redis = ResqueScheduler.redis
+        if redis.scard(:schedules_changed) > 0
           procline "Updating schedule"
           Resque.reload_schedule!
-          while schedule_name = Resque.redis.spop(:schedules_changed)
+          while schedule_name = redis.spop(:schedules_changed)
             if Resque.schedule.keys.include?(schedule_name)
               unschedule_job(schedule_name)
               load_schedule_job(schedule_name, Resque.schedule[schedule_name])
