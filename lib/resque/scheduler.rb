@@ -5,6 +5,7 @@ require_relative 'scheduler/configuration'
 require_relative 'scheduler/locking'
 require_relative 'scheduler/logger_builder'
 require_relative 'scheduler/signal_handling'
+require_relative 'scheduler/redis'
 
 module Resque
   module Scheduler
@@ -18,6 +19,7 @@ module Resque
     extend Resque::Scheduler::Locking
     extend Resque::Scheduler::Configuration
     extend Resque::Scheduler::SignalHandling
+    extend Resque::Scheduler::Redis
 
     public
 
@@ -92,7 +94,7 @@ module Resque
         Resque.schedule.each do |name, config|
           load_schedule_job(name, config)
         end
-        Resque.redis.del(:schedules_changed)
+        scheduler_redis.del(:schedules_changed)
         procline 'Schedules Loaded'
       end
 
@@ -291,10 +293,10 @@ module Resque
       end
 
       def update_schedule
-        if Resque.redis.scard(:schedules_changed) > 0
+        if scheduler_redis.scard(:schedules_changed) > 0
           procline 'Updating schedule'
           loop do
-            schedule_name = Resque.redis.spop(:schedules_changed)
+            schedule_name = scheduler_redis.spop(:schedules_changed)
             break unless schedule_name
             Resque.reload_schedule!
             if Resque.schedule.keys.include?(schedule_name)

@@ -52,7 +52,7 @@ module Resque
         # the required version of Redis.
 
         # select schedules to remove
-        if redis.exists(:schedules)
+        if Resque::Scheduler.scheduler_redis.exists(:schedules)
           clean_keys = non_persistent_schedules
         else
           clean_keys = []
@@ -61,12 +61,12 @@ module Resque
         # Start the transaction. If this is not atomic and more than one
         # process is calling `schedule=` the clean_schedules might overlap a
         # set_schedule and cause the schedules to become corrupt.
-        redis.multi do
+        Resque::Scheduler.scheduler_redis.multi do
           clean_schedules(clean_keys)
 
           schedule_hash = prepare_schedule(schedule_hash)
 
-          # store all schedules in redis, so we can retrieve them back
+          # store all schedules in Resque::Scheduler.scheduler_redis, so we can retrieve them back
           # everywhere.
           schedule_hash.each do |name, job_spec|
             set_schedule(name, job_spec)
@@ -83,23 +83,23 @@ module Resque
         @schedule || {}
       end
 
-      # reloads the schedule from redis
+      # reloads the schedule from Resque::Scheduler.scheduler_redis
       def reload_schedule!
         @schedule = all_schedules
       end
 
-      # gets the schedules as it exists in redis
+      # gets the schedules as it exists in Resque::Scheduler.scheduler_redis
       def all_schedules
-        return nil unless redis.exists(:schedules)
+        return nil unless Resque::Scheduler.scheduler_redis.exists(:schedules)
 
-        redis.hgetall(:schedules).tap do |h|
+        Resque::Scheduler.scheduler_redis.hgetall(:schedules).tap do |h|
           h.each do |name, config|
             h[name] = decode(config)
           end
         end
       end
 
-      # clean the schedules as it exists in redis, useful for first setup?
+      # clean the schedules as it exists in Resque::Scheduler.scheduler_redis, useful for first setup?
       def clean_schedules(keys = non_persistent_schedules)
         keys.each do |key|
           remove_schedule(key)
@@ -109,7 +109,7 @@ module Resque
       end
 
       def non_persistent_schedules
-        redis.hkeys(:schedules).select { |k| !schedule_persisted?(k) }
+        Resque::Scheduler.scheduler_redis.hkeys(:schedules).select { |k| !schedule_persisted?(k) }
       end
 
       # Create or update a schedule with the provided name and configuration.
@@ -123,28 +123,28 @@ module Resque
       #                                     :args => '/tmp/poop'})
       def set_schedule(name, config)
         persist = config.delete(:persist) || config.delete('persist')
-        redis.pipelined do
-          redis.hset(:schedules, name, encode(config))
-          redis.sadd(:schedules_changed, name)
-          redis.sadd(:persisted_schedules, name) if persist
+        Resque::Scheduler.scheduler_redis.pipelined do
+          Resque::Scheduler.scheduler_redis.hset(:schedules, name, encode(config))
+          Resque::Scheduler.scheduler_redis.sadd(:schedules_changed, name)
+          Resque::Scheduler.scheduler_redis.sadd(:persisted_schedules, name) if persist
         end
         config
       end
 
       # retrive the schedule configuration for the given name
       def fetch_schedule(name)
-        decode(redis.hget(:schedules, name))
+        decode(Resque::Scheduler.scheduler_redis.hget(:schedules, name))
       end
 
       def schedule_persisted?(name)
-        redis.sismember(:persisted_schedules, name)
+        Resque::Scheduler.scheduler_redis.sismember(:persisted_schedules, name)
       end
 
       # remove a given schedule by name
       def remove_schedule(name)
-        redis.hdel(:schedules, name)
-        redis.srem(:persisted_schedules, name)
-        redis.sadd(:schedules_changed, name)
+        Resque::Scheduler.scheduler_redis.hdel(:schedules, name)
+        Resque::Scheduler.scheduler_redis.srem(:persisted_schedules, name)
+        Resque::Scheduler.scheduler_redis.sadd(:schedules_changed, name)
       end
 
       private
