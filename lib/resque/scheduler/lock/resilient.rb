@@ -31,7 +31,7 @@ module Resque
             keys: keys,
             argv: argv
           )
-        rescue Redis::CommandError => e
+        rescue ::Redis::CommandError => e
           if e.message =~ /NOSCRIPT/
             refresh = true
             retry
