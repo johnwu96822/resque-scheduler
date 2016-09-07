@@ -91,7 +91,10 @@ module Resque
       def master_lock_key
         lock_prefix = ENV['RESQUE_SCHEDULER_MASTER_LOCK_PREFIX'] || ''
         lock_prefix += ':' if lock_prefix != ''
-        "#{Resque.redis.namespace}:#{lock_prefix}resque_scheduler_master_lock"
+        # Use the Resque::Scheduler.namespace here instead of Resque.redis.namespace
+        # * Resque::Scheduler.namespace is the namespace of the instance for signalling purposes.
+        # * Resque.redis.namespace is the namespace of where the jobs go.
+        "#{namespace}:#{lock_prefix}resque_scheduler_master_lock"
       end
 
       def redis_master_version
